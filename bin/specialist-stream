@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""specialist-stream - invoke a Claude Code specialist and stream a clean activity
+trace (tool calls + reasoning) live, then the final answer behind a marker.
+
+Same contract as ~/.hermes/bin/specialist, but uses --output-format stream-json so
+the specialist's work is visible instead of a black-box wait. Output shape:
+
+    [activity lines, flushed as they happen...]
+    ▸ Read(...)
+    ▸ Bash(aws lambda list-functions ...)
+    💭 <short reasoning beat>
+    ═══ ANSWER ═══
+    <final answer text>
+
+Hermes shows the activity in its tool dropdown; the router relays only the text
+after the ═══ ANSWER ═══ marker. Falls back cleanly: if the stream can't be
+parsed, the final result is still printed.
+
+Usage: specialist-stream <agent> "<task>" [extra-dir ...]
+"""
+import json, os, subprocess, sys
+
+CLAUDE = "/opt/homebrew/bin/claude"
+AGENTS_DIR = os.path.expanduser("~/.claude/agents")
+HOME = os.path.expanduser("~")
+
+
+def emit(line=""):
+    sys.stdout.write(line + "\n")
+    sys.stdout.flush()
+
+
+def main():
+    if len(sys.argv) < 3:
+        emit("usage: specialist-stream <agent> \"<task>\" [dirs...]")
+        return 2
+    agent = sys.argv[1]
+    task = sys.argv[2]
+    extra_dirs = [d for d in sys.argv[3:] if os.path.isdir(d)]
+
+    if not os.path.isfile(os.path.join(AGENTS_DIR, f"{agent}.md")):
+        emit(f"ERROR: no specialist named '{agent}'")
+        return 2
+
+    add_dirs = []
+    for d in [f"{HOME}/AGENTS", f"{HOME}/.hermes", f"{HOME}/.claude", *extra_dirs]:
+        add_dirs += ["--add-dir", d]
+
+    cmd = [CLAUDE, "-p", task, "--agent", agent, *add_dirs,
+           "--dangerously-skip-permissions",
+           "--output-format", "stream-json", "--include-partial-messages", "--verbose"]
+
+    emit(f"▸ {agent} working…")
+    final_text = ""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    try:
+        for raw in proc.stdout:
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except Exception:
+                continue
+            et = ev.get("type")
+            if et == "assistant":
+                for b in ev.get("message", {}).get("content", []):
+                    bt = b.get("type")
+                    if bt == "tool_use":
+                        name = b.get("name", "?")
+                        inp = json.dumps(b.get("input", {}))
+                        # show a short, readable arg preview
+                        preview = inp[:70].replace("\n", " ")
+                        emit(f"  ▸ {name}({preview}{'…' if len(inp) > 70 else ''})")
+                    elif bt == "thinking":
+                        th = (b.get("thinking") or "").strip().replace("\n", " ")
+                        if th:
+                            emit(f"  💭 {th[:90]}")
+                    elif bt == "text":
+                        t = b.get("text") or ""
+                        if t.strip():
+                            final_text = t  # last assistant text block is the answer
+            elif et == "result":
+                # the authoritative final result
+                r = ev.get("result")
+                if isinstance(r, str) and r.strip():
+                    final_text = r
+    finally:
+        proc.wait()
+
+    emit("═══ ANSWER ═══")
+    emit(final_text.strip() if final_text.strip() else "(no answer produced)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

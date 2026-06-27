@@ -1,0 +1,63 @@
+#!/bin/bash
+# specialist - invoke a Claude Code specialist agent headlessly and return its output.
+#
+# Usage:
+#   specialist <agent-name> "<task text>" [extra-add-dir ...]
+#   specialist <agent-name> --task-file /path/to/task.txt [extra-add-dir ...]
+#   echo "<task>" | specialist <agent-name> --stdin [extra-add-dir ...]
+#
+# This wraps the exact, tested `claude` invocation so the calling model never has
+# to improvise flags (the 2026-06-27 failure mode: bad --settings, max-turns 1).
+# Auth comes from the macOS Keychain Claude Code credential, which a launchd GUI
+# agent CAN read - verified. Runs on Joe's Claude subscription, not API.
+set -uo pipefail
+
+CLAUDE=/opt/homebrew/bin/claude
+AGENTS_DIR="$HOME/.claude/agents"
+
+usage() {
+  echo "usage: specialist <agent> \"<task>\" [dirs...]   (see header for --task-file / --stdin)" >&2
+  echo "available agents:" >&2
+  /bin/ls "$AGENTS_DIR" 2>/dev/null | /usr/bin/sed 's/\.md$//; s/^/  /' >&2
+  exit 2
+}
+
+AGENT="${1:-}"
+[ -z "$AGENT" ] && usage
+shift
+
+if [ ! -f "$AGENTS_DIR/$AGENT.md" ]; then
+  echo "ERROR: no specialist named '$AGENT' (looked in $AGENTS_DIR/$AGENT.md)" >&2
+  usage
+fi
+
+# Resolve the task text from one of three sources.
+TASK=""
+case "${1:-}" in
+  --task-file)
+    [ -n "${2:-}" ] && [ -r "$2" ] || { echo "ERROR: --task-file needs a readable path" >&2; exit 2; }
+    TASK="$(/bin/cat "$2")"; shift 2 ;;
+  --stdin)
+    TASK="$(/bin/cat)"; shift ;;
+  "")
+    echo "ERROR: no task given" >&2; usage ;;
+  *)
+    TASK="$1"; shift ;;
+esac
+[ -z "$TASK" ] && { echo "ERROR: empty task" >&2; exit 2; }
+
+# Working dirs: every specialist gets these, plus any extras passed as remaining args.
+ADD_DIRS=(--add-dir "$HOME/AGENTS" --add-dir "$HOME/.hermes" --add-dir "$HOME/.claude")
+for d in "$@"; do
+  [ -n "$d" ] && [ -d "$d" ] && ADD_DIRS+=(--add-dir "$d")
+done
+
+# Print mode, named agent (which carries its own model + persona), scoped dirs,
+# headless permissions, plain-text out. No --settings, no --bare (those bypass the
+# keychain OAuth and force API-key mode = the "Not logged in" failure).
+exec "$CLAUDE" \
+  -p "$TASK" \
+  --agent "$AGENT" \
+  "${ADD_DIRS[@]}" \
+  --dangerously-skip-permissions \
+  --output-format text

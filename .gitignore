@@ -1,0 +1,39 @@
+# Runtime state - never commit
+auth.json
+.env
+state.db
+state.db-shm
+state.db-wal
+kanban.db
+gateway_state.json
+channel_directory.json
+tasks.json
+swarm2-kanban.json
+
+# Caches
+*.log
+cache/
+audio_cache/
+image_cache/
+provider_models_cache.json
+models_dev_cache.json
+ollama_cloud_models_cache.json
+
+# Personal data
+logs/
+sessions/
+memories/
+reports/
+sandboxes/
+workspace/
+pairing/
+.backups/
+
+# Built artifacts
+webui/
+webui-mvp/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

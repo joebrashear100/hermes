@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""claude-usage - summarize Claude Code CLI token consumption from local session JSONLs.
+
+Reads every JSONL under ~/.claude/projects/, aggregates token usage from the
+`message.usage` field, and reports today / 7-day / per-model rollups so you can
+see how fast you're burning subscription quota.
+
+Subscription rate limits aren't exposed via API. This shows what you've used;
+the limit dance happens on claude.ai's side (Pro: ~5h rolling window; Max: higher).
+If you start seeing 429s in recent sessions, you're hitting the wall.
+
+Usage:
+  claude-usage              today + 7-day rollup
+  claude-usage --top N      include top-N heaviest sessions
+  claude-usage --since DATE rollup since YYYY-MM-DD
+"""
+from __future__ import annotations
+import argparse, json, os, sys
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+PROJECTS = Path.home() / ".claude" / "projects"
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    p.add_argument("--top", type=int, default=0, help="show N heaviest sessions")
+    p.add_argument("--since", help="rollup since YYYY-MM-DD (UTC)")
+    p.add_argument("--all", action="store_true", help="rollup all time")
+    return p.parse_args()
+
+
+def iter_messages():
+    """Yield (timestamp, model, usage_dict, session_file) for every assistant message."""
+    for path in PROJECTS.rglob("*.jsonl"):
+        try:
+            with path.open() as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    msg = obj.get("message")
+                    if not isinstance(msg, dict):
+                        continue
+                    usage = msg.get("usage")
+                    if not isinstance(usage, dict):
+                        continue
+                    ts_str = obj.get("timestamp")
+                    if not ts_str:
+                        continue
+                    try:
+                        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                    except Exception:
+                        continue
+                    yield ts, msg.get("model", "unknown"), usage, path
+        except Exception:
+            continue
+
+
+def aggregate(since_dt: datetime | None):
+    """Return (per_model: dict, sessions: list-of-tuples)."""
+    per_model: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"input": 0, "output": 0, "cache_read": 0, "cache_create": 0, "msgs": 0}
+    )
+    session_totals: dict[Path, dict] = defaultdict(
+        lambda: {"input": 0, "output": 0, "model": None, "last_ts": None}
+    )
+    for ts, model, usage, path in iter_messages():
+        if since_dt and ts < since_dt:
+            continue
+        m = per_model[model]
+        m["input"] += int(usage.get("input_tokens", 0))
+        m["output"] += int(usage.get("output_tokens", 0))
+        m["cache_read"] += int(usage.get("cache_read_input_tokens", 0))
+        m["cache_create"] += int(usage.get("cache_creation_input_tokens", 0))
+        m["msgs"] += 1
+        s = session_totals[path]
+        s["input"] += int(usage.get("input_tokens", 0))
+        s["output"] += int(usage.get("output_tokens", 0))
+        s["model"] = model
+        s["last_ts"] = ts if not s["last_ts"] or ts > s["last_ts"] else s["last_ts"]
+    return per_model, session_totals
+
+
+def fmt_tokens(n: int) -> str:
+    if n >= 1_000_000:
+        return f"{n/1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n/1_000:.1f}k"
+    return str(n)
+
+
+def print_rollup(label: str, per_model: dict, total_only: bool = False) -> None:
+    if not per_model:
+        print(f"  {label}: (no usage)")
+        return
+    tot_in = sum(m["input"] for m in per_model.values())
+    tot_out = sum(m["output"] for m in per_model.values())
+    tot_cr = sum(m["cache_read"] for m in per_model.values())
+    tot_cc = sum(m["cache_create"] for m in per_model.values())
+    tot_msgs = sum(m["msgs"] for m in per_model.values())
+    eff_in = tot_in + tot_cc + tot_cr  # full effective input including cache
+    print(f"\n=== {label} ===")
+    print(f"  total: {fmt_tokens(eff_in)} in + {fmt_tokens(tot_out)} out  "
+          f"({tot_msgs} msgs, cache hit-rate: "
+          f"{(tot_cr / eff_in * 100 if eff_in else 0):.0f}%)")
+    if total_only:
+        return
+    for model, m in sorted(per_model.items(), key=lambda kv: -kv[1]["input"]):
+        eff = m["input"] + m["cache_create"] + m["cache_read"]
+        hit = (m["cache_read"] / eff * 100) if eff else 0
+        print(f"  {model:<40} {fmt_tokens(eff):>8} in  {fmt_tokens(m['output']):>6} out  "
+              f"{m['msgs']:>4} msgs  cache:{hit:>3.0f}%")
+
+
+def main() -> int:
+    args = parse_args()
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=7)
+
+    if args.all:
+        per_model, sessions = aggregate(None)
+        print_rollup("ALL TIME", per_model)
+    elif args.since:
+        try:
+            since = datetime.fromisoformat(args.since).replace(tzinfo=timezone.utc)
+        except Exception:
+            print(f"bad --since: {args.since!r}", file=sys.stderr)
+            return 2
+        per_model, sessions = aggregate(since)
+        print_rollup(f"SINCE {args.since}", per_model)
+    else:
+        per_today, sessions_today = aggregate(today_start)
+        per_week, sessions = aggregate(week_start)
+        print_rollup(f"TODAY (since {today_start.strftime('%Y-%m-%d %H:%M UTC')})", per_today)
+        print_rollup("LAST 7 DAYS", per_week)
+
+    if args.top and sessions:
+        top = sorted(sessions.items(), key=lambda kv: -(kv[1]["input"] + kv[1]["output"]))[: args.top]
+        print(f"\n=== TOP {args.top} HEAVIEST SESSIONS ===")
+        for path, s in top:
+            ts = s["last_ts"].strftime("%Y-%m-%d %H:%M") if s["last_ts"] else "?"
+            print(f"  {fmt_tokens(s['input']):>7} in  {fmt_tokens(s['output']):>6} out  "
+                  f"{s['model']:<30}  {ts}  {path.parent.name}/{path.stem[:8]}")
+
+    print("\nData: ~/.claude/projects/<encoded-cwd>/<uuid>.jsonl")
+    print("Live subscription limit: claude.ai > Settings > Plans (Anthropic doesn't expose programmatically)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
