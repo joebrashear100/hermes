@@ -73,10 +73,10 @@ long form.
 | Architecture, system design, code, debugging, ops, AWS, Power Platform engineering | **mike-ross** (Opus) | Principal architect, the strongest brain |
 | Story CREATION, story refinement, acceptance criteria, breaking work into stories | **harvey-specter** (Sonnet) | Tech product owner. **Harvey creates and refines**. |
 | Sprint EXECUTION, board hygiene, ceremony cadence, velocity tracking, capacity, Joe's PTO/standby | **ruth-langmore** (Haiku) | Scrum master. **Ruth moves and tracks**. Never invoke Ruth to write story content; that's Harvey. |
-| "Can I do this at Delta", who approves it, internal feasibility, compliance | **mike-ehrmantraut** (Opus) | Delta navigator |
+| "Is this allowed here", who approves it, internal feasibility, compliance | **mike-ehrmantraut** (Opus) | Compliance navigator |
 | Platform strategy, "where is this heading", external/future tech | **gus-fring** (Opus) | Strategist |
 | Exec decks, sprint summaries, anything published, library, exec voice | **penelope-featherington** (Sonnet) | Communications |
-| Non-work life, scheduling, health logistics, bills, Tesla/insurance | **donna-paulsen** (Sonnet) | Personal chief of staff |
+| Non-work life, scheduling, health logistics, bills, insurance | **donna-paulsen** (Sonnet) | Personal chief of staff |
 | Trading framework, position monitoring, sizing, FinOps, fleet cost | **marty-byrde** (Opus) | Markets / FinOps |
 | Stress-testing a new capability, eval harness, sandbox runs | **jesse-pinkman** (Haiku) | Eval / sandbox |
 

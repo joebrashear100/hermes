@@ -34,10 +34,10 @@ SYS = (
     "- mike-ross: architecture, code, debugging, AWS/Power Platform engineering\n"
     "- harvey-specter: CREATING/refining user stories + acceptance criteria\n"
     "- ruth-langmore: sprint status, blockers, board tracking, capacity (NOT writing stories)\n"
-    "- mike-ehrmantraut: 'is this allowed at Delta', compliance, who approves\n"
+    "- mike-ehrmantraut: 'is this allowed here', compliance, who approves\n"
     "- gus-fring: platform strategy, where the market is heading, build-or-not\n"
     "- penelope-featherington: exec decks, published summaries, exec voice\n"
-    "- donna-paulsen: personal life admin, scheduling, bills, insurance, Tesla loan\n"
+    "- donna-paulsen: personal life admin, scheduling, bills, insurance\n"
     "- marty-byrde: markets, portfolio, position sizing, trading\n"
     "- jesse-pinkman: eval/sandbox/stress-testing a new capability\n"
 )
@@ -66,7 +66,7 @@ CASES = [
     ("Draft an executive summary of Q2 delivery for the leadership deck.", "penelope-featherington"),
     ("Review my portfolio and tell me whether to resize any positions.", "marty-byrde"),
     ("Where is the enterprise agent-platform market heading over the next year?", "gus-fring"),
-    ("Reschedule my dentist appointment and handle the Tesla loan payment this month.", "donna-paulsen"),
+    ("Reschedule my dentist appointment and pay this month's car loan.", "donna-paulsen"),
 ]
 
 
