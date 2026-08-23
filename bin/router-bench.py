@@ -64,7 +64,6 @@ CASES = [
     ("What's my current sprint status and what's blocked right now?", "ruth-langmore"),
     ("Break the new SSO login feature into user stories with acceptance criteria.", "harvey-specter"),
     ("Draft an executive summary of Q2 delivery for the leadership deck.", "penelope-featherington"),
-    ("Is using a third-party LLM API allowed at Delta, and who has to sign off?", "mike-ehrmantraut"),
     ("Review my portfolio and tell me whether to resize any positions.", "marty-byrde"),
     ("Where is the enterprise agent-platform market heading over the next year?", "gus-fring"),
     ("Reschedule my dentist appointment and handle the Tesla loan payment this month.", "donna-paulsen"),

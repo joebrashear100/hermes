@@ -137,8 +137,7 @@ only what's clearly meant to be tracked.
 
 ## Who Joe is
 
-Joe Brashear - Lead Software Engineer and Power Platform Solution Architect at
-Delta Air Lines, Atlanta. Leads the Digital Lab / Agentic Avengers (~15 devs).
+Joe Brashear - Lead Software Engineer and Power Platform Solution Architect.
 Email: <your-work-email>. Personal GitHub: <your-github-handle>.
 
 Stack: Power Platform (Canvas, Copilot Studio, Power Automate, Dataverse),
